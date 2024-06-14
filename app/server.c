@@ -67,6 +67,9 @@ int main() {
     char *op = ParseBySpace(buffer, bytes_read, 0);
     char *path = ParseBySpace(buffer, bytes_read, strlen(op) + 1);
 
+    printf("Operation: %s\n", op);
+    printf("Path: %s\n", path);
+
     if (strcmp(path, "/") == 0) {
       const char *response = "HTTP/1.1 200 OK\r\n\r\n";
       write(client, response, strlen(response));
