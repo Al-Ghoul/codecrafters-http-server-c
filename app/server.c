@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+char *ParseBySpace(char *buffer, int buffer_size, int startAt);
 
 int main() {
   // Disable output buffering
@@ -60,10 +61,32 @@ int main() {
 
   printf("Client connected\n");
 
-  const char *response = "HTTP/1.1 200 OK\r\n\r\n";
-  send(client, response, strlen(response), 0);
+  char buffer[1024];
+  int bytes_read = read(client, buffer, 1024);
+  if (bytes_read != -1) {
+    char *op = ParseBySpace(buffer, bytes_read, 0);
+    char *path = ParseBySpace(buffer, bytes_read, strlen(op) + 1);
+
+    if (strcmp(path, "/") == 0) {
+      const char *response = "HTTP/1.1 200 OK\r\n\r\n";
+      write(client, response, strlen(response));
+    } else {
+      const char *response = "HTTP/1.1 404 Not Found\r\n\r\n";
+      write(client, response, strlen(response));
+    }
+  }
 
   close(server_fd);
 
   return 0;
+}
+
+char *ParseBySpace(char *buffer, int buffer_size, int startAt) {
+  char *read_buffer = malloc(sizeof(char) * 5);
+
+  for (int i = startAt; i < buffer_size && buffer[i] != ' '; i++) {
+    read_buffer[i - startAt] = buffer[i];
+  }
+
+  return read_buffer;
 }
