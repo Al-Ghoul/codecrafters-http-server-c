@@ -12,8 +12,6 @@ int main() {
   setbuf(stdout, NULL);
   setbuf(stderr, NULL);
 
-  printf("Logs from your program will appear here!\n");
-
   int server_fd, client_addr_len;
   struct sockaddr_in client_addr;
 
@@ -52,8 +50,18 @@ int main() {
   printf("Waiting for a client to connect...\n");
   client_addr_len = sizeof(client_addr);
 
-  accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
+  int client =
+      accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
+
+  if (client == -1) {
+    printf("Client accept failed: %s \n", strerror(errno));
+    return 1;
+  }
+
   printf("Client connected\n");
+
+  const char *response = "HTTP/1.1 200 OK\r\n\r\n";
+  send(client, response, strlen(response), 0);
 
   close(server_fd);
 
