@@ -64,10 +64,11 @@ int main() {
   char buffer[1024];
   int bytes_read = read(client, buffer, 1024);
   if (bytes_read != -1) {
-    char *op = ParseBySpace(buffer, bytes_read, 0);
-    char *path = ParseBySpace(buffer, bytes_read, strlen(op) + 1);
+    printf("Received: %s\n", buffer);
+    char *method = ParseBySpace(buffer, bytes_read, 0);
+    char *path = ParseBySpace(buffer, bytes_read, strlen(method) + 1);
 
-    printf("Operation: %s\n", op);
+    printf("Method: %s\n", method);
     printf("Path: %s\n", path);
 
     if (strcmp(path, "/") == 0) {
