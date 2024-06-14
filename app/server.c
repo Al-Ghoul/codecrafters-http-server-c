@@ -68,8 +68,8 @@ int main() {
     char *method = ParseBySpace(buffer, bytes_read, 0);
     char *path = ParseBySpace(buffer, bytes_read, strlen(method) + 1);
 
-    printf("Method: %s\n", method);
-    printf("Path: %s\n", path);
+    printf("Method: '%s'\n", method);
+    printf("Path: '%s'\n", path);
 
     if (strcmp(path, "/") == 0) {
       const char *response = "HTTP/1.1 200 OK\r\n\r\n";
@@ -88,9 +88,12 @@ int main() {
 char *ParseBySpace(char *buffer, int buffer_size, int startAt) {
   char *read_buffer = malloc(sizeof(char) * 5);
 
-  for (int i = startAt; i < buffer_size && buffer[i] != ' '; i++) {
+  int i;
+  for (i = startAt; i < buffer_size && buffer[i] != ' '; i++) {
     read_buffer[i - startAt] = buffer[i];
   }
+
+  read_buffer[i - startAt] = '\0';
 
   return read_buffer;
 }
