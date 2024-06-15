@@ -1,11 +1,14 @@
 #include <errno.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+
+void *handle_connection(void *client_);
 char *ParseByCharacter(char *buffer, int buffer_size, int startAt, char c);
 
 int main() {
@@ -51,18 +54,33 @@ int main() {
   printf("Waiting for a client to connect...\n");
   client_addr_len = sizeof(client_addr);
 
-  int client =
-      accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
+  while (1) {
+    int client_fd =
+        accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
 
-  if (client == -1) {
-    printf("Client accept failed: %s \n", strerror(errno));
-    return 1;
+    if (client_fd == -1) {
+      printf("Client accept failed: %s \n", strerror(errno));
+      return 1;
+    }
+
+    pthread_t thread_id;
+    int rc =
+        pthread_create(&thread_id, NULL, handle_connection, (void *)&client_fd);
+    if (rc) {
+      printf("Thread creation failed: %s \n", strerror(errno));
+      return 1;
+    }
   }
-
   printf("Client connected\n");
+  close(server_fd);
 
+  return 0;
+}
+
+void *handle_connection(void *client_) {
+  int client_fd = *(int *)(client_);
   char buffer[1024];
-  int bytes_read = read(client, buffer, 1024);
+  int bytes_read = read(client_fd, buffer, 1024);
   if (bytes_read != -1) {
     printf("Received: %s\n", buffer);
     char *method = ParseByCharacter(buffer, bytes_read, 0, ' ');
@@ -84,7 +102,7 @@ int main() {
 
     if (strcmp(firstPath, "") == 0) {
       const char *response = "HTTP/1.1 200 OK\r\n\r\n";
-      write(client, response, strlen(response));
+      write(client_fd, response, strlen(response));
     } else if (strcmp(firstPath, "user-agent") == 0) {
       const char *header = "User-Agent:";
       char *headerkey = strstr(buffer, header);
@@ -98,7 +116,7 @@ int main() {
                  "HTTP/1.1 200 OK\r\nContent-Type: "
                  "text/plain\r\nContent-Length: %lu\r\n\r\n%s",
                  strlen(headerValue), headerValue);
-        write(client, response, strlen(response));
+        write(client_fd, response, strlen(response));
       }
     } else if (strcmp(firstPath, "echo") == 0) {
 
@@ -108,16 +126,14 @@ int main() {
                "text/plain\r\nContent-Length: %lu\r\n\r\n%s",
                strlen(subPath), subPath);
 
-      write(client, response, strlen(response));
+      write(client_fd, response, strlen(response));
     } else {
       const char *response = "HTTP/1.1 404 Not Found\r\n\r\n";
-      write(client, response, strlen(response));
+      write(client_fd, response, strlen(response));
     }
   }
 
-  close(server_fd);
-
-  return 0;
+  return NULL;
 }
 
 char *ParseByCharacter(char *buffer, int buffer_size, int startAt, char c) {
