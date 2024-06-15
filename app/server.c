@@ -85,6 +85,21 @@ int main() {
     if (strcmp(firstPath, "") == 0) {
       const char *response = "HTTP/1.1 200 OK\r\n\r\n";
       write(client, response, strlen(response));
+    } else if (strcmp(firstPath, "user-agent") == 0) {
+      const char *header = "User-Agent:";
+      char *headerkey = strstr(buffer, header);
+      if (headerkey != NULL) {
+        const char *headerValue = ParseByCharacter(
+            buffer, bytes_read, headerkey - buffer + strlen(header) + 1, '\r');
+        printf("'%s'", headerValue);
+
+        char response[256];
+        snprintf(response, sizeof(response),
+                 "HTTP/1.1 200 OK\r\nContent-Type: "
+                 "text/plain\r\nContent-Length: %lu\r\n\r\n%s",
+                 strlen(headerValue), headerValue);
+        write(client, response, strlen(response));
+      }
     } else if (strcmp(firstPath, "echo") == 0) {
 
       char response[256];
