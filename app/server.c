@@ -6,7 +6,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
-char *ParseBySpace(char *buffer, int buffer_size, int startAt);
+char *ParseByCharacter(char *buffer, int buffer_size, int startAt, char c);
 
 int main() {
   // Disable output buffering
@@ -65,14 +65,34 @@ int main() {
   int bytes_read = read(client, buffer, 1024);
   if (bytes_read != -1) {
     printf("Received: %s\n", buffer);
-    char *method = ParseBySpace(buffer, bytes_read, 0);
-    char *path = ParseBySpace(buffer, bytes_read, strlen(method) + 1);
+    char *method = ParseByCharacter(buffer, bytes_read, 0, ' ');
+    char *wholePath =
+        ParseByCharacter(buffer, bytes_read, strlen(method) + 2, ' ');
+    char *firstPath = ParseByCharacter(wholePath, strlen(wholePath), 0, '/');
 
     printf("Method: '%s'\n", method);
-    printf("Path: '%s'\n", path);
+    printf("Whole path: '%s'\n", wholePath);
+    printf("Path: '%s'\n", firstPath);
 
-    if (strcmp(path, "/") == 0) {
+    char *pch = strchr(wholePath, '/');
+    char *subPath = NULL;
+    if (pch != NULL) {
+      subPath = ParseByCharacter(wholePath, strlen(wholePath),
+                                 pch - wholePath + 1, '/');
+      printf("Subpath: '%s'\n", subPath);
+    }
+
+    if (strcmp(firstPath, "") == 0) {
       const char *response = "HTTP/1.1 200 OK\r\n\r\n";
+      write(client, response, strlen(response));
+    } else if (strcmp(firstPath, "echo") == 0) {
+
+      char response[256];
+      snprintf(response, sizeof(response),
+               "HTTP/1.1 200 OK\r\nContent-Type: "
+               "text/plain\r\nContent-Length: %lu\r\n\r\n%s",
+               strlen(subPath), subPath);
+
       write(client, response, strlen(response));
     } else {
       const char *response = "HTTP/1.1 404 Not Found\r\n\r\n";
@@ -85,11 +105,11 @@ int main() {
   return 0;
 }
 
-char *ParseBySpace(char *buffer, int buffer_size, int startAt) {
+char *ParseByCharacter(char *buffer, int buffer_size, int startAt, char c) {
   char *read_buffer = malloc(sizeof(char) * 5);
 
   int i;
-  for (i = startAt; i < buffer_size && buffer[i] != ' '; i++) {
+  for (i = startAt; i < buffer_size && buffer[i] != c; i++) {
     read_buffer[i - startAt] = buffer[i];
   }
 
