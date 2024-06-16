@@ -11,10 +11,19 @@
 void *handle_connection(void *client_);
 char *ParseByCharacter(char *buffer, int buffer_size, int startAt, char c);
 
-int main() {
+char *directory = NULL;
+int main(int argc, char *argv[]) {
   // Disable output buffering
   setbuf(stdout, NULL);
   setbuf(stderr, NULL);
+
+  if (argc > 1) {
+    const char *arg = "--directory";
+    if (strcmp(argv[1], arg) == 0) {
+      directory = argv[2];
+      printf("Directory: '%s'\n", directory);
+    }
+  }
 
   int server_fd, client_addr_len;
   struct sockaddr_in client_addr;
@@ -63,13 +72,14 @@ int main() {
       return 1;
     }
 
-    pthread_t thread_id;
-    int rc =
-        pthread_create(&thread_id, NULL, handle_connection, (void *)&client_fd);
-    if (rc) {
-      printf("Thread creation failed: %s \n", strerror(errno));
-      return 1;
-    }
+    /*   pthread_t thread_id;
+      int rc =
+          pthread_create(&thread_id, NULL, handle_connection, (void
+      *)&client_fd); if (rc) { printf("Thread creation failed: %s \n",
+      strerror(errno)); return 1;
+      } */
+
+    handle_connection((void *)&client_fd);
   }
   printf("Client connected\n");
   close(server_fd);
@@ -116,6 +126,8 @@ void *handle_connection(void *client_) {
                  "HTTP/1.1 200 OK\r\nContent-Type: "
                  "text/plain\r\nContent-Length: %lu\r\n\r\n%s",
                  strlen(headerValue), headerValue);
+        free((char *)headerValue);
+
         write(client_fd, response, strlen(response));
       }
     } else if (strcmp(firstPath, "echo") == 0) {
@@ -127,17 +139,55 @@ void *handle_connection(void *client_) {
                strlen(subPath), subPath);
 
       write(client_fd, response, strlen(response));
+    } else if (strcmp(firstPath, "files") == 0) {
+      FILE *file = NULL;
+      char *temp = malloc(sizeof(char) * strlen(directory) + strlen(subPath) + 1);
+      char response[256];
+      strcpy(temp, directory);
+      file = fopen(strcat(temp, subPath), "rb");
+
+      if (file != NULL) {
+        char *tempBuffer = NULL;
+        fseek(file, 0, SEEK_END);
+        long fileSize = ftell(file);
+        fseek(file, 0, SEEK_SET);
+
+        tempBuffer = malloc(fileSize);
+        if (tempBuffer) {
+          fread(tempBuffer, 1, fileSize, file);
+        }
+        snprintf(response, sizeof(response),
+                 "HTTP/1.1 200 OK\r\nContent-Type: "
+                 "application/octet-stream\r\nContent-Length: %lu\r\n\r\n%s",
+                 fileSize, tempBuffer);
+        // Close the file
+        fclose(file);
+        file = NULL;
+        printf("File %s closed\n", subPath);
+      } else {
+        snprintf(response, sizeof(response), "HTTP/1.1 404 Not Found\r\n\r\n");
+      }
+
+      write(client_fd, response, strlen(response));
     } else {
       const char *response = "HTTP/1.1 404 Not Found\r\n\r\n";
       write(client_fd, response, strlen(response));
     }
+
+    free(method);
+    free(wholePath);
+    free(firstPath);
+    free(subPath);
   }
+
+  printf("Closing connection\n");
+  close(client_fd);
 
   return NULL;
 }
 
 char *ParseByCharacter(char *buffer, int buffer_size, int startAt, char c) {
-  char *read_buffer = malloc(sizeof(char) * 5);
+  char *read_buffer = malloc(sizeof(char) * 255);
 
   int i;
   for (i = startAt; i < buffer_size && buffer[i] != c; i++) {
