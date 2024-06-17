@@ -72,14 +72,13 @@ int main(int argc, char *argv[]) {
       return 1;
     }
 
-    /*   pthread_t thread_id;
-      int rc =
-          pthread_create(&thread_id, NULL, handle_connection, (void
-      *)&client_fd); if (rc) { printf("Thread creation failed: %s \n",
-      strerror(errno)); return 1;
-      } */
-
-    handle_connection((void *)&client_fd);
+    pthread_t thread_id;
+    int rc =
+        pthread_create(&thread_id, NULL, handle_connection, (void *)&client_fd);
+    if (rc) {
+      printf("Thread creation failed: %s \n", strerror(errno));
+      return 1;
+    }
   }
   printf("Client connected\n");
   close(server_fd);
@@ -140,35 +139,72 @@ void *handle_connection(void *client_) {
 
       write(client_fd, response, strlen(response));
     } else if (strcmp(firstPath, "files") == 0) {
-      FILE *file = NULL;
-      char *temp = malloc(sizeof(char) * strlen(directory) + strlen(subPath) + 1);
-      char response[256];
-      strcpy(temp, directory);
-      file = fopen(strcat(temp, subPath), "rb");
+      if (strcmp(method, "GET") == 0) {
+        FILE *file = NULL;
+        char *temp =
+            malloc(sizeof(char) * strlen(directory) + strlen(subPath) + 1);
+        char response[256];
+        strcpy(temp, directory);
+        file = fopen(strcat(temp, subPath), "rb");
 
-      if (file != NULL) {
-        char *tempBuffer = NULL;
-        fseek(file, 0, SEEK_END);
-        long fileSize = ftell(file);
-        fseek(file, 0, SEEK_SET);
+        if (file != NULL) {
+          char *tempBuffer = NULL;
+          fseek(file, 0, SEEK_END);
+          long fileSize = ftell(file);
+          fseek(file, 0, SEEK_SET);
 
-        tempBuffer = malloc(fileSize);
-        if (tempBuffer) {
-          fread(tempBuffer, 1, fileSize, file);
+          tempBuffer = malloc(fileSize);
+          if (tempBuffer) {
+            fread(tempBuffer, 1, fileSize, file);
+          }
+          snprintf(response, sizeof(response),
+                   "HTTP/1.1 200 OK\r\nContent-Type: "
+                   "application/octet-stream\r\nContent-Length: %lu\r\n\r\n%s",
+                   fileSize, tempBuffer);
+          // Close the file
+          fclose(file);
+          file = NULL;
+          printf("File %s closed\n", subPath);
+        } else {
+          snprintf(response, sizeof(response),
+                   "HTTP/1.1 404 Not Found\r\n\r\n");
         }
-        snprintf(response, sizeof(response),
-                 "HTTP/1.1 200 OK\r\nContent-Type: "
-                 "application/octet-stream\r\nContent-Length: %lu\r\n\r\n%s",
-                 fileSize, tempBuffer);
-        // Close the file
-        fclose(file);
-        file = NULL;
-        printf("File %s closed\n", subPath);
-      } else {
-        snprintf(response, sizeof(response), "HTTP/1.1 404 Not Found\r\n\r\n");
+
+        free(temp);
+
+        write(client_fd, response, strlen(response));
+      } else if (strcmp(method, "POST") == 0) {
+        const char *header = "Content-Length:";
+        char *headerkey = strstr(buffer, header);
+        if (headerkey != NULL) {
+          const char *headerValue =
+              ParseByCharacter(buffer, bytes_read,
+                               headerkey - buffer + strlen(header) + 1, '\r');
+          const char *content = ParseByCharacter(
+              buffer, bytes_read,
+              headerkey - buffer + strlen(headerValue) + strlen(header) + 5,
+              '\n');
+          char *tempBuffer = malloc(sizeof(char) * (int)(*headerValue - '0'));
+          printf("'%s'\n", content);
+
+          FILE *file = NULL;
+
+          char *temp =
+              malloc(sizeof(char) * strlen(directory) + strlen(subPath) + 1);
+          strcpy(temp, directory);
+          file = fopen(strcat(temp, subPath), "w");
+
+          fprintf(file, "%s", content);
+
+          fclose(file);
+          free(temp);
+          free(tempBuffer);
+
+          const char *response = "HTTP/1.1 201 Created\r\n\r\n";
+          write(client_fd, response, strlen(response));
+        }
       }
 
-      write(client_fd, response, strlen(response));
     } else {
       const char *response = "HTTP/1.1 404 Not Found\r\n\r\n";
       write(client_fd, response, strlen(response));
